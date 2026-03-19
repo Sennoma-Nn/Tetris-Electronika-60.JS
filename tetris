@@ -2,6 +2,8 @@
 
 const readline = require('readline');
 const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
 
 let debugFile = '/dev/null';
 const args = process.argv.slice(2);
@@ -11,11 +13,6 @@ for (let i = 0; i < args.length; i++) {
         i++;
     }
 }
-
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
 
 let gameLevel = 0;
 let fallInterval;
@@ -31,6 +28,35 @@ Print('\x1b[4 q');
 
 const blockStr = '[]';
 
+function beep() {
+    const beepPath = path.join(__dirname, 'beep.ogg');
+    const command = 'paplay';
+    const args = [beepPath];
+    
+    try {
+        const playerProcess = spawn(command, args, {
+            stdio: 'ignore',
+            detached: false
+        });
+        
+        const timeout = setTimeout(() => {
+            if (!playerProcess.killed) {
+                playerProcess.kill('SIGTERM');
+            }
+        }, 500);
+        
+        playerProcess.on('close', () => {
+            clearTimeout(timeout);
+        });
+        
+        playerProcess.on('error', () => {
+            clearTimeout(timeout);
+        });
+    } catch (error) {
+        Print("\x07");
+    }
+}
+
 function showTitle() {
     Print('\x1b[H\x1b[2J');
     Print('\x1b]0;ИГРАТЬ В ТЕТРИС\x07');
@@ -42,14 +68,40 @@ function showTitle() {
 
     Print('\x1b[12B');
 
-    rl.question(`\r${' '.repeat(20)}ВАШ УРОВЕНЬ? (0-9) - `, (input) => {
-        const level = parseInt(input);
-        const canUse = Number.isInteger(level) && level >= 0 && level <= 9;
-        gameLevel = canUse ? level : 0;
-
-        rl.close();
-        initGame();
-    });
+    const prompt = `\x1b[21GВАШ УРОВЕНЬ? (0-9) - \x1b[s`;
+    Print(prompt);
+    
+    let inputChar = '';
+    let inputPosition = prompt.length;
+    
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding('utf8');
+    
+    const handleInput = (key) => {
+        beep();
+        if (key.charCodeAt(0) == 3) process.exit(0);
+        else if (key == '\x7f' || key == '\b') {
+            inputChar = '';
+            Print(`\x1b[u \x1b[u`);
+        } else if (key == '\r' || key == '\n') {
+            process.stdin.removeAllListeners('data');
+            
+            const level = parseInt(inputChar);
+            const canUse = Number.isInteger(level) && level >= 0 && level <= 9;
+            gameLevel = canUse ? level : 0;
+            
+            initGame();
+            return;
+        } else if (key.length <= 1) {
+            if (inputChar) Print(`\x1b[u`);
+            
+            inputChar = key;
+            Print(inputChar);
+        }
+    };
+    
+    process.stdin.on('data', handleInput);
 }
 
 function resetPlayfield() {
@@ -176,6 +228,64 @@ function drawBlock() {
     }
 }
 
+function checkCollision() {
+    for (let y = 0; y < currentShape.length; y++) {
+        for (let x = 0; x < currentShape[y].length; x++) {
+            if (currentShape[y][x]) {
+                const fieldY = currentY + y - 1;
+                const fieldX = currentX + x - 1;
+                if (fieldY >= 0 && fieldY < 20 && fieldX >= 0 && fieldX < 10) {
+                    if (playfield[fieldY][fieldX]) return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function gameOver() {
+    clearInterval(fallInterval);
+    log('游戏结束\n');
+    
+    Print('\x1b[16;1HВАШЕ ИМЯ? ');
+    
+    process.stdin.removeAllListeners('data');
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding('utf8');
+
+    let inputName = '';
+
+    const onData = (key) => {
+        beep();
+
+        if (/^\x1b\[\d*[ABCD]$/.test(key)) return; 
+        if (key.charCodeAt(0) == 3) process.exit(0);
+
+        if (key == '\n' || key == '\r') {
+            process.stdin.setRawMode(false);
+            
+            const trimmedName = inputName.trim().slice(0, 16);
+            log(`名称:\t${trimmedName}\n`);
+            process.stdin.removeListener('data', onData);
+            return;
+        }
+
+        if (key == '\x7f' || key == '\b') {
+            if (inputName.length > 0) {
+                inputName = inputName.slice(0, -1);
+                Print('\b \b');
+            }
+            return;
+        }
+
+        inputName += key;
+        Print(key);
+    };
+
+    process.stdin.on('data', onData);
+}
+
 function spawnBlock() {
     const isIO = nextShape == blockShapes[0] || nextShape == blockShapes[1];
     currentX = isIO ? 4 : 5;
@@ -184,6 +294,11 @@ function spawnBlock() {
     nextShape = blockShapes[Math.floor(Math.random() * blockShapes.length)];
     blockStartY = 0;
     lockInterrupted = false;
+
+    if (checkCollision()) {
+        gameOver();
+        return;
+    }
 
     if (fallInterval) clearInterval(fallInterval);
     fallInterval = setInterval(() => moveBlock(0, 1, true), getSpeed(gameLevel));
@@ -268,14 +383,28 @@ function moveBlock(dx, dy) {
 }
 
 function lockBlock() {
+    let hasBlockAboveTop = false;
+    
     for (let y = 0; y < currentShape.length; y++) {
         for (let x = 0; x < currentShape[y].length; x++) {
             if (currentShape[y][x]) {
                 const fieldY = currentY + y - 1;
                 const fieldX = currentX + x - 1;
-                if (fieldY >= 0 && fieldY < 20 && fieldX >= 0 && fieldX < 10) playfield[fieldY][fieldX] = 1;
+                
+                if (fieldY < 0) {
+                    hasBlockAboveTop = true;
+                }
+                
+                if (fieldY >= 0 && fieldY < 20 && fieldX >= 0 && fieldX < 10) {
+                    playfield[fieldY][fieldX] = 1;
+                }
             }
         }
+    }
+
+    if (hasBlockAboveTop) {
+        gameOver();
+        return;
     }
 
     calculateDropScore();
@@ -296,7 +425,8 @@ function calculateDropScore() {
 }
 
 function updateScoreDisplay() {
-    const scoreText = `  СЧЕТ:    ${score % 1000}`;
+    displayScore = String(score % 1000).padEnd(3, ' ');
+    const scoreText = `  СЧЕТ:    ${displayScore}`;
     Print(`\x1b[4;1H${scoreText}`);
     
     const currentSymbolCount = Math.floor(score / 1000);
@@ -471,6 +601,7 @@ function initGame() {
     process.stdin.setEncoding('utf8');
 
     process.stdin.on('data', (key) => {
+        beep();
         if (key == '7') moveBlock(-1, 0);
         else if (key == '9') moveBlock(1, 0);
         else if (key == '4') moveBlock(0, 1);
@@ -486,7 +617,3 @@ function initGame() {
 }
 
 showTitle();
-
-process.stdin.on('data', (_) => {
-    Print("\u0007");
-});
