@@ -425,8 +425,8 @@ function calculateDropScore() {
 }
 
 function updateScoreDisplay() {
-    displayScore = String(score % 1000).padEnd(3, ' ');
-    const scoreText = `  СЧЕТ:    ${displayScore}`;
+    displayScore = String(score % 1000).padStart(3, ' ');
+    const scoreText = `  СЧЕТ:  ${displayScore}`;
     Print(`\x1b[4;1H${scoreText}`);
     
     const currentSymbolCount = Math.floor(score / 1000);
