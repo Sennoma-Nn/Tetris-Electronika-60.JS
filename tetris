@@ -32,23 +32,23 @@ function beep() {
     const beepPath = path.join(__dirname, 'beep.ogg');
     const command = 'paplay';
     const args = [beepPath];
-    
+
     try {
         const playerProcess = spawn(command, args, {
             stdio: 'ignore',
             detached: false
         });
-        
+
         const timeout = setTimeout(() => {
             if (!playerProcess.killed) {
                 playerProcess.kill('SIGTERM');
             }
         }, 500);
-        
+
         playerProcess.on('close', () => {
             clearTimeout(timeout);
         });
-        
+
         playerProcess.on('error', () => {
             clearTimeout(timeout);
         });
@@ -58,6 +58,8 @@ function beep() {
 }
 
 function showTitle() {
+    beep();
+
     Print('\x1b[H\x1b[2J');
     Print('\x1b]0;ИГРАТЬ В ТЕТРИС\x07');
 
@@ -70,14 +72,14 @@ function showTitle() {
 
     const prompt = `\x1b[21GВАШ УРОВЕНЬ? (0-9) - \x1b[s`;
     Print(prompt);
-    
+
     let inputChar = '';
     let inputPosition = prompt.length;
-    
+
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.setEncoding('utf8');
-    
+
     const handleInput = (key) => {
         beep();
         if (key.charCodeAt(0) == 3) process.exit(0);
@@ -86,21 +88,21 @@ function showTitle() {
             Print(`\x1b[u \x1b[u`);
         } else if (key == '\r' || key == '\n') {
             process.stdin.removeAllListeners('data');
-            
+
             const level = parseInt(inputChar);
             const canUse = Number.isInteger(level) && level >= 0 && level <= 9;
             gameLevel = canUse ? level : 0;
-            
+
             initGame();
             return;
         } else if (key.length <= 1) {
             if (inputChar) Print(`\x1b[u`);
-            
+
             inputChar = key;
             Print(inputChar);
         }
     };
-    
+
     process.stdin.on('data', handleInput);
 }
 
@@ -206,6 +208,8 @@ let score = 0;
 let blockStartY = 0;
 let lastSymbolCount = 0
 
+let leaderboard = [];
+
 function clearBlock() {
     for (let y = 0; y < currentShape.length; y++) {
         for (let x = 0; x < currentShape[y].length; x++) {
@@ -246,9 +250,9 @@ function checkCollision() {
 function gameOver() {
     clearInterval(fallInterval);
     log('游戏结束\n');
-    
+
     Print('\x1b[16;1HВАШЕ ИМЯ? ');
-    
+
     process.stdin.removeAllListeners('data');
     process.stdin.setRawMode(true);
     process.stdin.resume();
@@ -259,15 +263,40 @@ function gameOver() {
     const onData = (key) => {
         beep();
 
-        if (/^\x1b\[\d*[ABCD]$/.test(key)) return; 
+        if (/^\x1b\[\d*[ABCD]$/.test(key)) return;
         if (key.charCodeAt(0) == 3) process.exit(0);
 
         if (key == '\n' || key == '\r') {
             process.stdin.setRawMode(false);
-            
+
             const trimmedName = inputName.trim().slice(0, 16);
             log(`名称:\t${trimmedName}\n`);
             process.stdin.removeListener('data', onData);
+
+            if (trimmedName != "") {
+                leaderboard.push({
+                    name: trimmedName,
+                    score: score,
+                    level: gameLevel,
+                    isLatest: true
+                });
+
+                leaderboard.forEach(entry => {
+                    if (entry !== leaderboard[leaderboard.length - 1]) {
+                        entry.isLatest = false;
+                    }
+                });
+
+                leaderboard.sort((a, b) => b.score - a.score);
+
+                log(`排行榜加入: ${trimmedName} - ${score}\n`);
+            } else {
+                leaderboard.forEach(entry => {
+                    entry.isLatest = false;
+                });
+            }
+
+            showLeaderboard();
             return;
         }
 
@@ -363,7 +392,7 @@ function moveBlock(dx, dy) {
                 lockInterrupted = false;
                 return;
             }
-            
+
             if (!canMove(0, 1)) {
                 log('方块锁定\n');
                 lockBlock();
@@ -377,24 +406,24 @@ function moveBlock(dx, dy) {
         currentY += dy;
 
         drawBlock();
-        
+
         if (!canMove(0, 1) && currentY > 0) lockInterrupted = true;
     }
 }
 
 function lockBlock() {
     let hasBlockAboveTop = false;
-    
+
     for (let y = 0; y < currentShape.length; y++) {
         for (let x = 0; x < currentShape[y].length; x++) {
             if (currentShape[y][x]) {
                 const fieldY = currentY + y - 1;
                 const fieldX = currentX + x - 1;
-                
+
                 if (fieldY < 0) {
                     hasBlockAboveTop = true;
                 }
-                
+
                 if (fieldY >= 0 && fieldY < 20 && fieldX >= 0 && fieldX < 10) {
                     playfield[fieldY][fieldX] = 1;
                 }
@@ -417,10 +446,10 @@ function calculateDropScore() {
     let dropScore = Math.max(0, 19 - rowsDescended);
     dropScore += 3 * (gameLevel + 1);
     if (!showNextBlock) dropScore += 5;
-    
+
     score += dropScore;
     log(`┌ 下落得分:\t${dropScore}\n├ 下落行数:\t${rowsDescended}\n├ 预览奖励:\t${showNextBlock ? 0 : 5}\n│\n└ 当前分数:\t${score}\n`)
-    
+
     updateScoreDisplay();
 }
 
@@ -428,7 +457,7 @@ function updateScoreDisplay() {
     displayScore = String(score % 1000).padStart(3, ' ');
     const scoreText = `  СЧЕТ:  ${displayScore}`;
     Print(`\x1b[4;1H${scoreText}`);
-    
+
     const currentSymbolCount = Math.floor(score / 1000);
     if (currentSymbolCount > lastSymbolCount) {
         updateScoreSymbols();
@@ -448,20 +477,20 @@ function updateScoreSymbols() {
 function checkAndClearLines() {
     let linesCleared = 0;
     let affectedRows = new Set();
-    
+
     for (let y = 19; y >= 0; y--) {
         let isLineFull = true;
-        
+
         for (let x = 0; x < 10; x++) {
             if (playfield[y][x] == 0) {
                 isLineFull = false;
                 break;
             }
         }
-        
+
         if (isLineFull) {
             linesCleared++;
-            
+
             let topRowWithBlocks = y;
             for (let checkY = y - 1; checkY >= 0; checkY--) {
                 let hasBlocks = false;
@@ -478,27 +507,27 @@ function checkAndClearLines() {
                     break;
                 }
             }
-            
+
             for (let moveY = y; moveY >= topRowWithBlocks; moveY--) {
                 affectedRows.add(moveY);
             }
-            
+
             for (let moveY = y; moveY > 0; moveY--) {
                 for (let x = 0; x < 10; x++) {
                     playfield[moveY][x] = playfield[moveY - 1][x];
                 }
             }
-            
+
             for (let x = 0; x < 10; x++) {
                 playfield[0][x] = 0;
             }
-            
+
             y++
-            
+
             log(`┌ 消除行:\t${y}\n`);
         }
     }
-    
+
     if (linesCleared > 0) {
         totalLinesCleared += linesCleared;
         log(`├ 本次消除:\t${linesCleared}\n│\n└ 总计 ${totalLinesCleared} 行\n`);
@@ -528,9 +557,9 @@ function updatePlayfieldDisplay(affectedRows, linesCleared) {
         for (let x = 0; x < 10; x++) {
             const screenY = y + 1;
             const screenX = (x + 1) * 2 + 26;
-            
-            if (playfield[y][x])    Print(`\x1b[${screenY + 1};${screenX}H${blockStr}`);
-            else                    Print(`\x1b[${screenY + 1};${screenX}H .`);
+
+            if (playfield[y][x]) Print(`\x1b[${screenY + 1};${screenX}H${blockStr}`);
+            else Print(`\x1b[${screenY + 1};${screenX}H .`);
         }
     }
 }
@@ -553,7 +582,7 @@ function hardDrop() {
 
 function toggleNextBlockPreview() {
     showNextBlock = !showNextBlock;
-    
+
     if (showNextBlock) {
         drawNextBlock();
     } else {
@@ -574,7 +603,7 @@ function clearRightPanelText() {
 
 function rotateBlock(direction) {
     if (currentShape == blockShapes[1]) return;
-    
+
     if (canRotate(direction)) {
         clearBlock();
         currentShape = rotate(currentShape, direction);
@@ -585,7 +614,7 @@ function rotateBlock(direction) {
             lockInterrupted = true;
             log('旋转打断锁定\n');
         }
-        
+
         if (!canMove(0, 1) && currentY > 0 && !lockInterrupted) {
             lockBlock();
         }
@@ -614,6 +643,65 @@ function initGame() {
             process.exit(0);
         }
     });
+}
+
+function showLeaderboard() {
+    Print('\x1b[H\x1b[2J');
+    Print('\x1b[2;17HИМЯ        УРОВЕНЬ  СЧЕТ');
+
+    for (let i = 0; i < leaderboard.length; i++) {
+        const entry = leaderboard[i];
+        const displayScore = String(entry.score).padStart(6, ' ');
+        const row = 3 + i;
+        let displayText = `\x1b[${row};17H${entry.name}\x1b[${row};34H${entry.level}${displayScore}`;
+
+        if (entry.isLatest) {
+            displayText += ' **';
+        }
+
+        Print(displayText);
+    }
+
+    Print('\x1b[24;13HЕЩЕ ПАРТИЮ? (ДА/НЕТ) - ');
+
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding('utf8');
+
+    let inputText = '';
+
+    const handleKey = (key) => {
+        beep();
+        if (/^\x1b\[\d*[ABCD]$/.test(key)) return;
+        if (key.charCodeAt(0) == 3) process.exit(0);
+
+        if (key === '\n' || key === '\r') {
+            if (inputText.toUpperCase() === 'ДА') {
+                process.stdin.removeAllListeners('data');
+                score = 0;
+                totalLinesCleared = 0;
+                playfield = Array(20).fill().map(() => Array(10).fill(0));
+
+                showTitle();
+            } else {
+                process.exit(0);
+            }
+            return;
+        }
+
+        if (key === '\x7f' || key === '\b') {
+            if (inputText.length > 0) {
+                inputText = inputText.slice(0, -1);
+                Print('\b \b');
+            }
+            return;
+        }
+
+        inputText += key;
+        Print(key);
+    };
+
+    process.stdin.on('data', handleKey);
 }
 
 showTitle();
