@@ -8,7 +8,7 @@ const { spawn } = require('child_process');
 let debugFile = '/dev/null';
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
-    if (args[i] == '-d' && args[i + 1]) {
+    if (args[i] === '-d' && args[i + 1]) {
         debugFile = args[i + 1];
         i++;
     }
@@ -82,11 +82,11 @@ function showTitle() {
 
     const handleInput = (key) => {
         beep();
-        if (key.charCodeAt(0) == 3) process.exit(0);
-        else if (key == '\x7f' || key == '\b') {
+        if (key.charCodeAt(0) === 3) process.exit(0);
+        else if (key === '\x7f' || key === '\b') {
             inputChar = '';
             Print(`\x1b[u \x1b[u`);
-        } else if (key == '\r' || key == '\n') {
+        } else if (key === '\r' || key === '\n') {
             process.stdin.removeAllListeners('data');
 
             const level = parseInt(inputChar);
@@ -114,8 +114,8 @@ function resetPlayfield() {
         line += ' .'.repeat(10);
         line += '!>';
 
-        if (y == 20) line = `\x1b[${y + 2};26H<!${'='.repeat(20)}!>`;
-        if (y == 21) line = `\x1b[${y + 2};28H${'\\/'.repeat(10)}`;
+        if (y === 20) line = `\x1b[${y + 2};26H<!${'='.repeat(20)}!>`;
+        if (y === 21) line = `\x1b[${y + 2};28H${'\\/'.repeat(10)}`;
 
         Print(`${line}`);
     }
@@ -185,11 +185,11 @@ const getSpeed = (level) => Number((1 - (level - 1) * (1 - 0.3) / (9 - 1)).toFix
 
 const rotate = (block, direction) => {
     const N = block.length;
-    if (direction == 'r') {
+    if (direction === 'r') {
         return block.map((row, i) =>
             row.map((val, j) => block[N - 1 - j][i])
         );
-    } else if (direction == 'l') {
+    } else if (direction === 'l') {
         return block.map((row, i) =>
             row.map((val, j) => block[j][N - 1 - i])
         );
@@ -264,9 +264,9 @@ function gameOver() {
         beep();
 
         if (/^\x1b\[\d*[ABCD]$/.test(key)) return;
-        if (key.charCodeAt(0) == 3) process.exit(0);
+        if (key.charCodeAt(0) === 3) process.exit(0);
 
-        if (key == '\n' || key == '\r') {
+        if (key === '\n' || key === '\r') {
             process.stdin.setRawMode(false);
 
             const trimmedName = inputName.trim().slice(0, 16);
@@ -282,7 +282,7 @@ function gameOver() {
                 });
 
                 leaderboard.forEach(entry => {
-                    if (entry !== leaderboard[leaderboard.length - 1]) {
+                    if (entry != leaderboard[leaderboard.length - 1]) {
                         entry.isLatest = false;
                     }
                 });
@@ -300,7 +300,7 @@ function gameOver() {
             return;
         }
 
-        if (key == '\x7f' || key == '\b') {
+        if (key === '\x7f' || key === '\b') {
             if (inputName.length > 0) {
                 inputName = inputName.slice(0, -1);
                 Print('\b \b');
@@ -316,7 +316,7 @@ function gameOver() {
 }
 
 function spawnBlock() {
-    const isIO = nextShape == blockShapes[0] || nextShape == blockShapes[1];
+    const isIO = nextShape === blockShapes[0] || nextShape === blockShapes[1];
     currentX = isIO ? 4 : 5;
     currentY = 0;
     currentShape = nextShape;
@@ -343,7 +343,7 @@ function drawNextBlock() {
         }
     }
 
-    const isIO = nextShape == blockShapes[0] || nextShape == blockShapes[1];
+    const isIO = nextShape === blockShapes[0] || nextShape === blockShapes[1];
     const xOffset = isIO ? 17 : 19;
 
     for (let y = 0; y < nextShape.length; y++) {
@@ -482,7 +482,7 @@ function checkAndClearLines() {
         let isLineFull = true;
 
         for (let x = 0; x < 10; x++) {
-            if (playfield[y][x] == 0) {
+            if (playfield[y][x] === 0) {
                 isLineFull = false;
                 break;
             }
@@ -495,7 +495,7 @@ function checkAndClearLines() {
             for (let checkY = y - 1; checkY >= 0; checkY--) {
                 let hasBlocks = false;
                 for (let x = 0; x < 10; x++) {
-                    if (playfield[checkY][x] !== 0) {
+                    if (playfield[checkY][x] != 0) {
                         hasBlocks = true;
                         break;
                     }
@@ -602,7 +602,7 @@ function clearRightPanelText() {
 }
 
 function rotateBlock(direction) {
-    if (currentShape == blockShapes[1]) return;
+    if (currentShape === blockShapes[1]) return;
 
     if (canRotate(direction)) {
         clearBlock();
@@ -631,14 +631,14 @@ function initGame() {
 
     process.stdin.on('data', (key) => {
         beep();
-        if (key == '7') moveBlock(-1, 0);
-        else if (key == '9') moveBlock(1, 0);
-        else if (key == '4') moveBlock(0, 1);
-        else if (key == '8') rotateBlock('l');
-        else if (key == ' ' || key == '5') hardDrop();
-        else if (key == '1') toggleNextBlockPreview();
-        else if (key == '0') clearRightPanelText();
-        else if (key.charCodeAt(0) == 3) {
+        if (key === '7') moveBlock(-1, 0);
+        else if (key === '9') moveBlock(1, 0);
+        else if (key === '4') moveBlock(0, 1);
+        else if (key === '8') rotateBlock('l');
+        else if (key === ' ' || key === '5') hardDrop();
+        else if (key === '1') toggleNextBlockPreview();
+        else if (key === '0') clearRightPanelText();
+        else if (key.charCodeAt(0) === 3) {
             clearInterval(fallInterval);
             process.exit(0);
         }
@@ -673,7 +673,7 @@ function showLeaderboard() {
     const handleKey = (key) => {
         beep();
         if (/^\x1b\[\d*[ABCD]$/.test(key)) return;
-        if (key.charCodeAt(0) == 3) process.exit(0);
+        if (key.charCodeAt(0) === 3) process.exit(0);
 
         if (key === '\n' || key === '\r') {
             if (inputText.toUpperCase() === 'ДА') {
