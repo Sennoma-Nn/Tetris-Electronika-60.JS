@@ -1,11 +1,18 @@
 {
     "name": "tetris-electronika-60",
     "version": "1.0.0",
-    "main": "tetris",
+    "main": "tetris.js",
+    "bin": "tetris.js",
     "scripts": {
-        "start": "node tetris"
+        "start": "node tetris.js",
+        "build:linux": "pkg tetris.js --target node18-linux-x64 --output dist/tetris-electronika-60-linux",
+        "build:win": "pkg tetris.js --target node18-win-x64 --output dist/tetris-electronika-60-win.exe",
+        "build": "npm run build:linux && npm run build:win"
     },
     "engines": {
         "node": ">=12.0.0"
+    },
+    "devDependencies": {
+        "pkg": "^5.8.1"
     }
 }

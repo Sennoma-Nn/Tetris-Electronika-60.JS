@@ -29,32 +29,7 @@ Print('\x1b[4 q');
 const blockStr = '[]';
 
 function beep() {
-    const beepPath = path.join(__dirname, 'beep.ogg');
-    const command = 'paplay';
-    const args = [beepPath];
-
-    try {
-        const playerProcess = spawn(command, args, {
-            stdio: 'ignore',
-            detached: false
-        });
-
-        const timeout = setTimeout(() => {
-            if (!playerProcess.killed) {
-                playerProcess.kill('SIGTERM');
-            }
-        }, 500);
-
-        playerProcess.on('close', () => {
-            clearTimeout(timeout);
-        });
-
-        playerProcess.on('error', () => {
-            clearTimeout(timeout);
-        });
-    } catch (error) {
-        Print("\x07");
-    }
+    Print("\x07");
 }
 
 function showTitle() {
