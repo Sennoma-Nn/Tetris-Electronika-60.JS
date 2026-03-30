@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-const readline = require('readline');
 const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
 
 let debugFile = '/dev/null';
+let disableBeep = false;
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
     if (args[i] === '-d' && args[i + 1]) {
         debugFile = args[i + 1];
         i++;
+    } else if (args[i] === '-n') {
+        disableBeep = true;
     }
 }
 
@@ -21,21 +21,23 @@ const log = (text) => {
     if (debugFile != '/dev/null') fs.appendFileSync(debugFile, text);
 }
 
-const Print = process.stdout.write.bind(process.stdout);
-
-Print('\x1b[0;40;32m');
-Print('\x1b[4 q');
-
+const Print = (text) => fs.writeSync(1, text);
 const blockStr = '[]';
 
 function beep() {
-    Print("\x07");
+    if (!disableBeep) {
+        Print("\x07");
+    }
 }
 
 function showTitle() {
     beep();
 
+    Print('\x1b[4 q');
+    Print('\x1b[0;40;32m');
     Print('\x1b[H\x1b[2J');
+    // Print("\x1b[2*x\x1b[1;1;;;0$r\x1b[*x");
+    // Print("\x1b[2*x\x1b[1;1;24;80;40$r\x1b[*x");
     Print('\x1b]0;ИГРАТЬ В ТЕТРИС\x07');
 
     const titleHeight = 7;
@@ -82,7 +84,11 @@ function showTitle() {
 }
 
 function resetPlayfield() {
+    Print('\x1b[0m');
+    Print('\x1b[0;40;32m');
     Print('\x1b[H\x1b[2J');
+    // Print("\x1b[2*x\x1b[1;1;;;0$r\x1b[*x");
+    // Print("\x1b[2*x\x1b[1;1;24;80;40$r\x1b[*x");
 
     for (let y = 0; y < 22; y++) {
         let line = `\x1b[${y + 2};26H<!`;
