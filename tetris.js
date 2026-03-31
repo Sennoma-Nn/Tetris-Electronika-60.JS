@@ -3,14 +3,17 @@
 const fs = require('fs');
 
 let debugFile = '/dev/null';
-let disableBeep = false;
+let enableBeep = true;
+let isDecCompatible = false
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
     if (args[i] === '-d' && args[i + 1]) {
         debugFile = args[i + 1];
         i++;
     } else if (args[i] === '-n') {
-        disableBeep = true;
+        enableBeep = false;
+    } else if (args[i] === '-v') {
+        isDecCompatible = true;
     }
 }
 
@@ -18,26 +21,35 @@ let gameLevel = 0;
 let fallInterval;
 
 const log = (text) => {
-    if (debugFile != '/dev/null') fs.appendFileSync(debugFile, text);
+    if (debugFile !== '/dev/null') fs.appendFileSync(debugFile, text);
 }
 
 const Print = (text) => fs.writeSync(1, text);
 const blockStr = '[]';
 
 function beep() {
-    if (!disableBeep) {
+    if (enableBeep) {
         Print("\x07");
+    }
+}
+
+function resetColorBg() {
+    if (!isDecCompatible) {
+        Print('\x1b[0;40;32m');
+        Print('\x1b[H\x1b[2J');
+    } else {
+        Print('\x1b[0m');
+        Print('\x1b[H\x1b[2J');
+        Print("\x1b[2*x\x1b[1;1;24;80;40$r\x1b[*x");
+        Print('\x1b[40;32m');
     }
 }
 
 function showTitle() {
     beep();
+    resetColorBg();
 
     Print('\x1b[4 q');
-    Print('\x1b[0;40;32m');
-    Print('\x1b[H\x1b[2J');
-    // Print("\x1b[2*x\x1b[1;1;;;0$r\x1b[*x");
-    // Print("\x1b[2*x\x1b[1;1;24;80;40$r\x1b[*x");
     Print('\x1b]0;ИГРАТЬ В ТЕТРИС\x07');
 
     const titleHeight = 7;
@@ -60,6 +72,7 @@ function showTitle() {
     const handleInput = (key) => {
         beep();
         if (key.charCodeAt(0) === 3) process.exit(0);
+        if (key === "\v" || key === "\f" || key === "\t") return;
         else if (key === '\x7f' || key === '\b') {
             inputChar = '';
             Print(`\x1b[u \x1b[u`);
@@ -84,11 +97,7 @@ function showTitle() {
 }
 
 function resetPlayfield() {
-    Print('\x1b[0m');
-    Print('\x1b[0;40;32m');
-    Print('\x1b[H\x1b[2J');
-    // Print("\x1b[2*x\x1b[1;1;;;0$r\x1b[*x");
-    // Print("\x1b[2*x\x1b[1;1;24;80;40$r\x1b[*x");
+    resetColorBg();
 
     for (let y = 0; y < 22; y++) {
         let line = `\x1b[${y + 2};26H<!`;
@@ -232,19 +241,19 @@ function gameOver() {
     clearInterval(fallInterval);
     log('游戏结束\n');
 
-    Print('\x1b[16;1HВАШЕ ИМЯ? ');
-
     process.stdin.removeAllListeners('data');
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.setEncoding('utf8');
 
+    Print('\x1b[16;1HВАШЕ ИМЯ? ');
     let inputName = '';
 
     const onData = (key) => {
         beep();
 
         if (/^\x1b\[\d*[ABCD]$/.test(key)) return;
+        if (key === "\v" || key === "\f" || key === "\t") return;
         if (key.charCodeAt(0) === 3) process.exit(0);
 
         if (key === '\n' || key === '\r') {
@@ -254,7 +263,7 @@ function gameOver() {
             log(`名称:\t${trimmedName}\n`);
             process.stdin.removeListener('data', onData);
 
-            if (trimmedName != "") {
+            if (trimmedName !== "") {
                 leaderboard.push({
                     name: trimmedName,
                     score: score,
@@ -263,7 +272,7 @@ function gameOver() {
                 });
 
                 leaderboard.forEach(entry => {
-                    if (entry != leaderboard[leaderboard.length - 1]) {
+                    if (entry !== leaderboard[leaderboard.length - 1]) {
                         entry.isLatest = false;
                     }
                 });
@@ -476,7 +485,7 @@ function checkAndClearLines() {
             for (let checkY = y - 1; checkY >= 0; checkY--) {
                 let hasBlocks = false;
                 for (let x = 0; x < 10; x++) {
-                    if (playfield[checkY][x] != 0) {
+                    if (playfield[checkY][x] !== 0) {
                         hasBlocks = true;
                         break;
                     }
@@ -595,10 +604,6 @@ function rotateBlock(direction) {
             lockInterrupted = true;
             log('旋转打断锁定\n');
         }
-
-        if (!canMove(0, 1) && currentY > 0 && !lockInterrupted) {
-            lockBlock();
-        }
     }
 }
 
@@ -627,7 +632,7 @@ function initGame() {
 }
 
 function showLeaderboard() {
-    Print('\x1b[H\x1b[2J');
+    resetColorBg();
     Print('\x1b[2;17HИМЯ        УРОВЕНЬ  СЧЕТ');
 
     for (let i = 0; i < leaderboard.length; i++) {
@@ -654,6 +659,7 @@ function showLeaderboard() {
     const handleKey = (key) => {
         beep();
         if (/^\x1b\[\d*[ABCD]$/.test(key)) return;
+        if (key === "\v" || key === "\f" || key === "\t") return;
         if (key.charCodeAt(0) === 3) process.exit(0);
 
         if (key === '\n' || key === '\r') {
