@@ -1,19 +1,28 @@
 #!/usr/bin/env node
 
 const fs = require('fs');
+const path = require('path');
 
 let debugFile = '/dev/null';
 let enableBeep = true;
 let isDecCompatible = false
+let blockStr = '[]';
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
     if (args[i] === '-d' && args[i + 1]) {
-        debugFile = args[i + 1];
+        debugFile = args[i + 1] ?? debugFile;
         i++;
     } else if (args[i] === '-n') {
         enableBeep = false;
-    } else if (args[i] === '-v') {
+    } else if (args[i] === '-D') {
         isDecCompatible = true;
+    } else if (args[i] === '-b') {
+        blockStr = args[i + 1] ?? blockStr;
+        i++;
+    } else if (args[i] === '-h') {
+        let command = path.basename(process.argv[0]);
+        fs.writeSync(1, `usage: ${command} [-b string] [-d file] [-D] [-h] [-n]`);
+        process.exit(0);
     }
 }
 
@@ -25,7 +34,6 @@ const log = (text) => {
 }
 
 const Print = (text) => fs.writeSync(1, text);
-const blockStr = '[]';
 
 function beep() {
     if (enableBeep) {
